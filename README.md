@@ -27,7 +27,8 @@ pip install uv
 git clone git@github.com:kilian-group/phantom-reasoning.git
 cd phantom-reasoning
 uv pip install -e ".[dev]"
-uv pip install flash-attn --no-build-isolation
+# Prebuilt wheel matching torch 2.9 (pinned by vLLM); `uv pip install flash-attn` builds from source and can fail
+uv pip install "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl"
 ```
 
 **2. Download the data** (PhantomWiki + all eval sets, into `data/`):

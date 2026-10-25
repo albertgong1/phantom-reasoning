@@ -39,6 +39,8 @@ dependencies = [
     "ujson", # needed for HotPotQA evaluation
     "reasoning_gym==0.1.24",
     "phantom-wiki[eval]>=1.0.3",
+    "langchain<1.0", # phantom_eval imports langchain.prompts, removed in langchain 1.0
+    "nvidia-cutlass-dsl==4.2.1", # flash-attn 2.8.3's flash_attn.cute (imported by vLLM) breaks on newer versions
 ]
 
 [project.optional-dependencies]
