@@ -1,0 +1,43 @@
+# Smoke-test GRPO recipe — same as config_pw_1gpu_smoke.yaml, but generates with transformers'
+# padded `model.generate()` instead of vLLM.
+# Not meant to produce a good model: tiny step count, short completions, one data split.
+
+# Script config
+dataset_name: "data/wiki-v1-easy-depth_20_size_25"
+split_list: ["depth_20_size_25_seed_11"]
+from_local: true
+eval_dataset_name: "data/wiki-v1-easy-depth_20_size_25"
+eval_split_list: ["depth_20_size_25_seed_2"]
+eval_from_local: true
+reward_func_names: ["f1"]
+data_curriculum: "random"
+prompt_method: "cot"
+
+# Model arguments
+model_name_or_path: "Qwen/Qwen3-0.6B"
+bf16: true
+dtype: bfloat16
+attn_implementation: "flash_attention_2" # used for both training and generate()
+gradient_checkpointing: true
+
+# Trainer arguments
+max_steps: 10 # overrides num_train_epochs; just enough to confirm the loop runs
+per_device_train_batch_size: 4
+gradient_accumulation_steps: 1
+use_vllm: false
+use_transformers_continuous_batching: false # padded `model.generate()` with a regular (dynamic) KV cache
+generation_kwargs: {}
+
+# max_prompt_length: 6000
+num_generations: 4 # Should divide per_device_train_batch_size * number of GPUs.
+max_completion_length: 1024 # shorter than the real recipe (4096) to keep the smoke test fast
+
+# Logging config
+log_level: "info"
+logging_strategy: "steps"
+logging_first_step: true
+logging_steps: 1
+save_strategy: "no" # don't write checkpoints for a throwaway run
+log_completions: true
+num_completions_to_print: 2 # print a couple of completions so you can see it working
+eval_strategy: "no"

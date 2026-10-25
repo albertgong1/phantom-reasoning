@@ -25,22 +25,20 @@ classifiers = [
 ]
 
 dependencies = [
-    "torch",
-    "vllm",
+    "torch==2.9.0", # newest torch with a prebuilt flash-attn wheel (flash-attn 2.8.3)
     "deepspeed",
-    "trl[vllm] @ git+https://github.com/huggingface/trl.git@d24ec77dafa595de1f7f99be8e11771c29f62c7f",
-    "transformers",
+    "trl==1.16.0", # first release with `use_transformers_continuous_batching`
+    "transformers==5.20.2", # sdpa/flash attention handle the paged KV cache directly since 5.19
     "accelerate",
     "datasets",
     "peft",
-    "huggingface_hub[cli]",
+    "huggingface_hub", # 1.x+ ships the `hf` CLI; the [cli] extra was removed
     "lighteval[math]",
     "wandb",
     "ujson", # needed for HotPotQA evaluation
     "reasoning_gym==0.1.24",
     "phantom-wiki[eval]>=1.0.3",
     "langchain<1.0", # phantom_eval imports langchain.prompts, removed in langchain 1.0
-    "nvidia-cutlass-dsl==4.2.1", # flash-attn 2.8.3's flash_attn.cute (imported by vLLM) breaks on newer versions
 ]
 
 [project.optional-dependencies]
@@ -56,6 +54,8 @@ Repository = "https://github.com/kilian-group/phantom-reasoning.git"
 
 [tool.uv]
 index-strategy = "unsafe-best-match"
+# Transformers-only env: drop vLLM, which phantom-wiki[eval] still pulls in (marker never matches)
+override-dependencies = ['vllm ; sys_platform == "never"']
 
 [[tool.uv.index]]
 name = "pytorch-cu128"

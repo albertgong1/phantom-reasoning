@@ -308,7 +308,7 @@ def train_grpo(script_args: GRPOScriptArguments, training_args: GRPOConfig, mode
     # and set padding_side="left". So we do it here with other kwargs.
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
-        trust_remote_code=model_args.trust_remote_code,
+        trust_remote_code=training_args.trust_remote_code,  # moved from ModelConfig in TRL 1.x
         use_fast=True,
         padding_side="left",
     )
@@ -328,7 +328,7 @@ def train_grpo(script_args: GRPOScriptArguments, training_args: GRPOConfig, mode
 
     model_kwargs = dict(
         revision=model_args.model_revision,
-        trust_remote_code=model_args.trust_remote_code,
+        trust_remote_code=training_args.trust_remote_code,  # moved from ModelConfig in TRL 1.x
         attn_implementation=model_args.attn_implementation,
         torch_dtype=torch_dtype,
         use_cache=False if training_args.gradient_checkpointing else True,
