@@ -6,7 +6,8 @@
 #   vllm       : vLLM colocate, in $VLLM_ENV (vLLM 0.13, transformers 4.57) with main's grpo.py
 #   cb         : transformers continuous batching (CUDA graphs on, the default), in $TF_ENV (transformers 5.20)
 #   cb_nograph : continuous batching with CUDA graphs off
-#   cb_compile : continuous batching with default_compile_level=1 (torch.compile on the decode path)
+#   cb_compile : continuous batching with default_compile_level=1 (torch.compile on the decode path), with
+#                FlashAttention excluded from compilation so all layers share one compiled graph
 #   generate   : padded model.generate() with a dynamic KV cache
 # Suffix _n32 runs 32 completions per step (4 prompts x 8 generations, via gradient accumulation; the training
 # micro-batch stays at 4).
@@ -52,7 +53,8 @@ for name in "$@"; do
         vllm) env=$VLLM_ENV; cfg=$R/config_pw_1gpu_smoke.yaml; grpo=$OUT_DIR/grpo_main.py ;;
         cb) ;;
         cb_nograph) extra=(--transformers_continuous_batching_config '{"num_blocks": 256, "use_cuda_graph": false}') ;;
-        cb_compile) extra=(--transformers_continuous_batching_config '{"num_blocks": 256, "default_compile_level": 1}') ;;
+        cb_compile) extra=(--transformers_continuous_batching_config '{"num_blocks": 256, "default_compile_level": 1}')
+            env_vars+=(DYNAMO_DISABLE_ATTN=1) ;;
         generate) cfg=$R/config_pw_1gpu_smoke_generate.yaml ;;
         *) echo "Unknown variant: $name"; exit 1 ;;
     esac

@@ -53,6 +53,7 @@ Outputs (`<variant>.log`, `.nsys-rep`, `.sqlite`) go to `runs/benchmarks/`. `ste
 | CB + CUDA graphs (default) | ~40 s (estimated)     | ~77 s       | 763 s    | no profiler                      |
 | Padded `generate()`        |                       |             |          | OOM at step 0                    |
 
-Caveats: vLLM ran with transformers 4.57 / the pinned TRL; `cb_compile` hit dynamo's recompile limit (8), so only
-~8 of 28 layers compiled (raise `torch._dynamo.config.recompile_limit` above 28). Continuous batching's
+Caveats: vLLM ran with transformers 4.57 / the pinned TRL; `cb_compile` here hit dynamo's recompile limit (8), so
+only ~8 of 28 layers compiled. `run_benchmarks.sh` now excludes FlashAttention from compilation for `cb_compile`
+(`DYNAMO_DISABLE_ATTN=1` in `bench_grpo.py`), which removes the per-layer recompiles. Continuous batching's
 generation time at 32 completions is `step_time` minus vLLM's ~37 s of training.

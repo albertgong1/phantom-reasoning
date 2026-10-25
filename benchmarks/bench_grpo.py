@@ -25,6 +25,22 @@ PROFILE_START = int(os.environ.get("PROFILE_START", 2))
 PROFILE_END = int(os.environ.get("PROFILE_END", 4))
 STATE = {"profiling": False}
 
+# torch.compile specializes on each decoder layer's integer `layer_idx`, so compiling every layer with
+# attention included needs a recompile limit of about layers x batch sizes (the default 8 is far too low)
+if "DYNAMO_RECOMPILE_LIMIT" in os.environ:
+    torch._dynamo.config.recompile_limit = int(os.environ["DYNAMO_RECOMPILE_LIMIT"])
+
+# Alternatively, keep FlashAttention out of torch.compile: it is already a single fused kernel, and the
+# paged cache indexes a Python list by `layer_idx` inside it, which forces one compiled copy per layer.
+# Models look the function up in ALL_ATTENTION_FUNCTIONS on every forward, so that entry is replaced.
+if os.environ.get("DYNAMO_DISABLE_ATTN") == "1":
+    from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+
+    for _impl in ("flash_attention_2", "flash_attention_3", "flash_attention_4"):
+        ALL_ATTENTION_FUNCTIONS._global_mapping[_impl] = torch._dynamo.disable(
+            ALL_ATTENTION_FUNCTIONS._global_mapping[_impl]
+        )
+
 # `kill -USR1 <pid>` dumps every Python thread's stack to stderr (for diagnosing hangs)
 faulthandler.register(signal.SIGUSR1, all_threads=True)
 
