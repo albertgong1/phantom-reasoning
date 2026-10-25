@@ -3,12 +3,17 @@
 Compares GRPO generation with vLLM (colocate) against transformers continuous batching (`generate_batch`) and
 padded `generate()`, on the single-GPU Qwen3-0.6B PhantomWiki smoke config.
 
-| File                     | Purpose                                                                                         |
-| ------------------------ | ----------------------------------------------------------------------------------------------- |
-| `run_benchmarks.sh`      | Runs each variant (optionally under Nsight Systems) and exports traces to SQLite                |
-| `bench_grpo.py`          | Runs `grpo.py` unchanged, wrapping generation in NVTX ranges and starting/stopping the profiler |
-| `analyze_nsys.py`        | Splits GPU kernel time into generation vs training and attention vs other kernels               |
-| `prefix_sharing_test.py` | CPU check of how much prompt prefill continuous batching shares across identical prompts        |
+| File                         | Purpose                                                                                             |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `run_benchmarks.sh`          | Runs each variant (optionally under Nsight Systems) and exports traces to SQLite                    |
+| `bench_grpo.py`              | Runs `grpo.py` unchanged, wrapping generation in NVTX ranges and starting/stopping the profiler     |
+| `analyze_nsys.py`            | Splits GPU kernel time into generation vs training and attention vs other kernels                   |
+| `prefix_sharing_test.py`     | CPU check of how much prompt prefill continuous batching shares across identical prompts            |
+| `run_cb_experiment.sh`       | Runs one continuous batching GRPO experiment without nsys, with per-step `CB_TRACE` logging         |
+| `decode_breakdown.py`        | Breaks down GPU time in recorded generation steps by kernel category (attention, GEMM, Triton, ...) |
+| `prefix_sharing_gpu_test.py` | GPU check of prefix sharing vs async batching and `max_batch_tokens`                                |
+| `attn_shape_bench.py`        | Times FlashAttention at continuous batching's prefill, warmup and decode shapes                     |
+| `cascade_attn_bench.py`      | Plain paged decode attention vs vLLM-style cascade (shared-prefix) attention                        |
 
 ## Environments
 
