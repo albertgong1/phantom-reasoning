@@ -31,6 +31,17 @@ transformers_continuous_batching_config:
   # 256 pages = 65,536 tokens (~7.5GB for Qwen3-0.6B), matching the vLLM smoke recipe's budget
   # (vllm_gpu_memory_utilization 0.30 of 24GB).
   num_blocks: 256
+  # torch.compile the decode path (fuses RMSNorm etc.); FlashAttention itself stays uncompiled
+  # (compile_exclude_flash_attn, on by default)
+  default_compile_level: 1
+  # Async batching (on by default with CUDA graphs + FlashAttention) schedules the next batch before the
+  # current one registers its blocks, so the num_generations copies of a prompt never share their prefix
+  use_async_batching: false
+  # A smaller token budget spreads the copies of a prompt over more batches, so later copies reuse the
+  # prefix blocks of earlier ones (4 copies of a ~5k-token prompt: ~6.4k prefill tokens instead of ~20.5k)
+  max_batch_tokens: 2048
+# Keep the manager (paged cache, CUDA graphs, warmup) across steps instead of rebuilding it every step (~3 s)
+cb_persistent_manager: true
 generation_kwargs: {}
 
 # max_prompt_length: 6000

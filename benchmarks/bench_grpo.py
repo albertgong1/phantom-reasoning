@@ -16,6 +16,7 @@ import faulthandler
 import os
 import runpy
 import signal
+import time
 
 import torch
 from trl.trainer.grpo_trainer import GRPOTrainer
@@ -41,6 +42,42 @@ if os.environ.get("DYNAMO_DISABLE_ATTN") == "1":
             ALL_ATTENTION_FUNCTIONS._global_mapping[_impl]
         )
 
+# Continuous batching diagnostics (transformers >= 5.x only):
+#   CB_PERSISTENT=1 keeps the manager (paged cache, CUDA graphs, warmup) alive across generate_batch calls
+#   CB_TRACE=1 logs, per generation call, the prompt lengths and the prefill query tokens actually scheduled
+CB_STATS = {"batches": 0, "prefill_tokens": 0, "prompt_lens": []}
+if os.environ.get("CB_PERSISTENT") == "1" or os.environ.get("CB_TRACE") == "1":
+    from transformers.generation.continuous_batching import continuous_api
+    from transformers.generation.continuous_batching import scheduler as cb_scheduler
+
+    _orig_generate_batch = continuous_api.ContinuousMixin.generate_batch
+
+    def _generate_batch(self, inputs, *args, **kwargs):
+        if os.environ.get("CB_PERSISTENT") == "1":
+            kwargs["persistent_manager"] = True
+            # Like TRL's vLLM path (reset_prefix_cache after each weight sync), drop prefix-cached KV blocks:
+            # they were computed with the previous step's weights. CB_KEEP_PREFIX_CACHE=1 keeps them (stale).
+            manager = getattr(self, "_cached_continuous_batching_manager", None)
+            if manager is not None and manager.batch_processor is not None:
+                if os.environ.get("CB_KEEP_PREFIX_CACHE") != "1":
+                    manager.batch_processor.cache.reset()
+        CB_STATS["prompt_lens"] = [len(x) for x in inputs]
+        CB_STATS["unique_prompt_tokens"] = sum(len(x) for x in set(map(tuple, inputs)))
+        return _orig_generate_batch(self, inputs, *args, **kwargs)
+
+    continuous_api.ContinuousMixin.generate_batch = _generate_batch
+
+    _orig_process = cb_scheduler.Scheduler._process_candidates
+
+    def _process_candidates(self, *args, **kwargs):
+        out = _orig_process(self, *args, **kwargs)
+        if out[0]:
+            CB_STATS["batches"] += 1
+            CB_STATS["prefill_tokens"] += sum(s.query_length for s in out[0] if s.query_length > 1)
+        return out
+
+    cb_scheduler.Scheduler._process_candidates = _process_candidates
+
 # `kill -USR1 <pid>` dumps every Python thread's stack to stderr (for diagnosing hangs)
 faulthandler.register(signal.SIGUSR1, all_threads=True)
 
@@ -57,10 +94,22 @@ def _generate_single_turn(self, *args, **kwargs):
         torch.cuda.profiler.stop()
         STATE["profiling"] = False
     torch.cuda.nvtx.range_push(f"gen step {step}")
+    CB_STATS.update(batches=0, prefill_tokens=0)
+    start = time.perf_counter()
     try:
         return _orig_generate(self, *args, **kwargs)
     finally:
         torch.cuda.nvtx.range_pop()
+        # Generation returns token ids to the CPU, so the GPU work is done by the time it returns
+        msg = f"[bench] step {step} gen_s={time.perf_counter() - start:.2f}"
+        if CB_STATS["prompt_lens"]:
+            lens = CB_STATS["prompt_lens"]
+            msg += (
+                f" prompts={len(lens)} unique_prompt_tokens={CB_STATS['unique_prompt_tokens']}"
+                f" all_prompt_tokens={sum(lens)}"
+                f" prefill_tokens={CB_STATS['prefill_tokens']} batches={CB_STATS['batches']}"
+            )
+        print(msg, flush=True)
 
 
 GRPOTrainer._generate_single_turn = _generate_single_turn

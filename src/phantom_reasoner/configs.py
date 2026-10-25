@@ -68,6 +68,17 @@ class GRPOConfig(trl.GRPOConfig):
         default=None,
         metadata={"help": ("The project to store runs under.")},
     )
+    cb_persistent_manager: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "With use_transformers_continuous_batching, keep the continuous batching manager (paged "
+                "cache, CUDA graphs, warmup) alive across generation steps instead of rebuilding it each "
+                "step. The prefix cache is reset before each step, since its KV was computed with the "
+                "previous weights."
+            )
+        },
+    )
     compile_exclude_flash_attn: bool = field(
         default=True,
         metadata={

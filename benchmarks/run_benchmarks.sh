@@ -8,6 +8,7 @@
 #   cb_nograph : continuous batching with CUDA graphs off
 #   cb_compile : continuous batching with default_compile_level=1 (torch.compile on the decode path), with
 #                FlashAttention excluded from compilation so all layers share one compiled graph
+#   cb_kv<N>   : continuous batching with kv_padding_interval_size=N tokens (default 16384), e.g. cb_kv1024
 #   generate   : padded model.generate() with a dynamic KV cache
 # Suffix _n32 runs 32 completions per step (4 prompts x 8 generations, via gradient accumulation; the training
 # micro-batch stays at 4).
@@ -55,6 +56,8 @@ for name in "$@"; do
         cb_nograph) extra=(--transformers_continuous_batching_config '{"num_blocks": 256, "use_cuda_graph": false}') ;;
         cb_compile) extra=(--transformers_continuous_batching_config '{"num_blocks": 256, "default_compile_level": 1}')
             env_vars+=(DYNAMO_DISABLE_ATTN=1) ;;
+        cb_kv[0-9]*) kv=${name%_n32}; kv=${kv#cb_kv}
+            extra=(--transformers_continuous_batching_config "{\"num_blocks\": 256, \"kv_padding_interval_size\": $kv}") ;;
         generate) cfg=$R/config_pw_1gpu_smoke_generate.yaml ;;
         *) echo "Unknown variant: $name"; exit 1 ;;
     esac

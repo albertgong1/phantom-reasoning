@@ -344,6 +344,8 @@ def train_grpo(script_args: GRPOScriptArguments, training_args: GRPOConfig, mode
         model_args.model_name_or_path,
         **model_kwargs,
     )
+    if training_args.use_transformers_continuous_batching and training_args.cb_persistent_manager:
+        exp_utils.persist_continuous_batching_manager(model)
     if model_kwargs["quantization_config"] is not None:
         logger.info("*** Preparing model for kbit training ***")
         model = prepare_model_for_kbit_training(model)

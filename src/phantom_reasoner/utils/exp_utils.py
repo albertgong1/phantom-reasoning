@@ -55,6 +55,28 @@ def exclude_flash_attn_from_compile() -> None:
     logger.info("*** Excluded FlashAttention from torch.compile ***")
 
 
+def persist_continuous_batching_manager(model) -> None:
+    """
+    Make `model.generate_batch` keep its continuous batching manager between calls. TRL calls generate_batch
+    with the default persistent_manager=False, which reallocates the paged cache, reruns warmup and recaptures
+    CUDA graphs on every generation step (about 3 s per step for Qwen3-0.6B). Prefix-cached KV blocks are
+    dropped before each call, like TRL's reset_prefix_cache() for vLLM after a weight sync, because they were
+    computed with the previous step's weights. Captured CUDA graphs read the weights by address, so this
+    relies on the optimizer updating parameters in place (true for DDP and DeepSpeed ZeRO-1/2, not ZeRO-3).
+    """
+    orig_generate_batch = model.generate_batch
+
+    def generate_batch(inputs, *args, **kwargs):
+        manager = getattr(model, "_cached_continuous_batching_manager", None)
+        if manager is not None and manager.batch_processor is not None:
+            manager.batch_processor.cache.reset()
+        kwargs["persistent_manager"] = True
+        return orig_generate_batch(inputs, *args, **kwargs)
+
+    model.generate_batch = generate_batch
+    logger.info("*** Continuous batching manager will persist across generation steps ***")
+
+
 def disable_flash_attn_if_unsupported_glibc(model_args: ModelConfig) -> None:
     """
     Get glibc version from ldd --version. If less than 2.32, set attn_implementation to None
