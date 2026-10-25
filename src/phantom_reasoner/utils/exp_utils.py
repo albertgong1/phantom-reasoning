@@ -38,6 +38,23 @@ def get_run_name(
     return run_name
 
 
+def exclude_flash_attn_from_compile() -> None:
+    """
+    Wrap the registered FlashAttention functions in torch._dynamo.disable, so torch.compile leaves them out.
+    FlashAttention is already a single fused kernel, but with the paged KV cache it indexes a Python list
+    by `layer_idx`, so compiling it creates one graph per layer and exhausts dynamo's recompile limit.
+    Models look the function up in ALL_ATTENTION_FUNCTIONS on every forward, so replacing it there suffices.
+    """
+    import torch
+    from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+
+    for impl in ("flash_attention_2", "flash_attention_3", "flash_attention_4"):
+        fn = ALL_ATTENTION_FUNCTIONS._global_mapping.get(impl)
+        if fn is not None and not getattr(fn, "_torchdynamo_disable", False):
+            ALL_ATTENTION_FUNCTIONS._global_mapping[impl] = torch._dynamo.disable(fn)
+    logger.info("*** Excluded FlashAttention from torch.compile ***")
+
+
 def disable_flash_attn_if_unsupported_glibc(model_args: ModelConfig) -> None:
     """
     Get glibc version from ldd --version. If less than 2.32, set attn_implementation to None

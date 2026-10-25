@@ -325,6 +325,8 @@ def train_grpo(script_args: GRPOScriptArguments, training_args: GRPOConfig, mode
     torch_dtype = model_args.dtype if model_args.dtype in ["auto", None] else getattr(torch, model_args.dtype)
 
     exp_utils.disable_flash_attn_if_unsupported_glibc(model_args)
+    if training_args.compile_exclude_flash_attn:
+        exp_utils.exclude_flash_attn_from_compile()
 
     model_kwargs = dict(
         revision=model_args.model_revision,

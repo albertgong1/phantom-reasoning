@@ -68,6 +68,16 @@ class GRPOConfig(trl.GRPOConfig):
         default=None,
         metadata={"help": ("The project to store runs under.")},
     )
+    compile_exclude_flash_attn: bool = field(
+        default=True,
+        metadata={
+            "help": (
+                "Keep FlashAttention out of torch.compile (e.g. transformers continuous batching with "
+                "default_compile_level > 0). Compiling it specializes on each layer's layer_idx, which hits "
+                "dynamo's recompile limit after a few layers. No effect when nothing is compiled."
+            )
+        },
+    )
 
 
 @dataclass
